@@ -1,0 +1,41 @@
+name: Build YinZygisk
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract YinZygisk.zip
+        run: |
+          unzip -q YinZygisk.zip -d extracted
+          if [ -f extracted/Makefile ]; then
+            cp -rf extracted/. .
+          else
+            SUBDIR=$(find extracted -maxdepth 2 -name Makefile -printf '%h\n' | head -n 1)
+            cp -rf "$SUBDIR"/. .
+          fi
+          rm -rf extracted
+
+      - name: Fetch external dependencies
+        run: make deps
+
+      - name: Setup NDK_PATH
+        run: echo "NDK_PATH=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
+
+      - name: Build Release
+        run: |
+          SHORT_SHA=$(git rev-parse --short=7 HEAD)
+          make release COMMIT_HASH="$SHORT_SHA" -j$(nproc)
+
+      - name: Upload Module ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: YinZygisk-arm64-release
+          path: "build/out/YinZygisk-*-release.zip"
